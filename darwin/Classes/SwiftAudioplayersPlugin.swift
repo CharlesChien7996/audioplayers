@@ -293,7 +293,8 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
             let isLocal: Bool = (args["isLocal"] as? Bool) ?? false
             let respectSilence: Bool = (args["respectSilence"] as? Bool) ?? false
             let recordingActive: Bool = (args["recordingActive"] as? Bool) ?? false
-            
+            let deactivateAfterPlayed: Bool = (args["deactivateAfterPlayed"] as? Bool) ?? false
+
             if url == nil {
                 log("Null URL received on setUrl")
                 result(0)
@@ -305,7 +306,8 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
                 url: url!,
                 isLocal: isLocal,
                 isNotification: respectSilence,
-                recordingActive: recordingActive
+                recordingActive: recordingActive,
+                deactivateAfterPlayed: deactivateAfterPlayed
             ) {
                 playerId in
                 result(1)
