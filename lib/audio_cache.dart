@@ -78,8 +78,7 @@ class AudioCache {
   Future<File> fetchToMemory(String fileName) async {
     final file = File('${(await getTemporaryDirectory()).path}/$fileName');
     await file.create(recursive: true);
-    return await file
-        .writeAsBytes((await _fetchAsset(fileName)).buffer.asUint8List());
+    return await file.writeAsBytes((await _fetchAsset(fileName)).buffer.asUint8List());
   }
 
   /// Loads all the [fileNames] provided to the cache.
@@ -110,26 +109,24 @@ class AudioCache {
   /// The instance is returned, to allow later access (either way), like pausing and resuming.
   ///
   /// isNotification and stayAwake are not implemented on macOS
-  Future<AudioPlayer> play(
-    String fileName, {
-    double volume = 1.0,
-    bool isNotification,
-    PlayerMode mode = PlayerMode.MEDIA_PLAYER,
-    bool stayAwake = false,
-    bool recordingActive = false,
-    bool duckAudio,
-  }) async {
+  Future<AudioPlayer> play(String fileName,
+      {double volume = 1.0,
+      bool isNotification,
+      PlayerMode mode = PlayerMode.MEDIA_PLAYER,
+      bool stayAwake = false,
+      bool recordingActive = false,
+      bool duckAudio,
+      bool deactivateAfterPlayed = false}) async {
     String url = await getAbsoluteUrl(fileName);
     AudioPlayer player = _player(mode);
     player.setReleaseMode(ReleaseMode.STOP);
-    await player.play(
-      url,
-      volume: volume,
-      respectSilence: isNotification ?? respectSilence,
-      stayAwake: stayAwake,
-      recordingActive: recordingActive,
-      duckAudio: duckAudio ?? this.duckAudio,
-    );
+    await player.play(url,
+        volume: volume,
+        respectSilence: isNotification ?? respectSilence,
+        stayAwake: stayAwake,
+        recordingActive: recordingActive,
+        duckAudio: duckAudio ?? this.duckAudio,
+        deactivateAfterPlayed: deactivateAfterPlayed);
     return player;
   }
 

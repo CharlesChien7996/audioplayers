@@ -259,7 +259,8 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
             let respectSilence: Bool = (args["respectSilence"] as? Bool) ?? false
             let recordingActive: Bool = (args["recordingActive"] as? Bool) ?? false
             let duckAudio: Bool = (args["duckAudio"] as? Bool) ?? false
-            
+            let deactivateAfterPlayed: Bool = (args["deactivateAfterPlayed"] as? Bool) ?? false
+
             self.play(
                 playerId: playerId,
                 url: url!,
@@ -268,7 +269,8 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
                 time: seekTime,
                 isNotification: respectSilence,
                 duckAudio: duckAudio,
-                recordingActive: recordingActive
+                recordingActive: recordingActive,
+                deactivateAfterPlayed: deactivateAfterPlayed
             )
         } else if method == "pause" {
             self.pause(playerId: playerId)
@@ -426,7 +428,8 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
         time: CMTime?,
         isNotification: Bool,
         duckAudio: Bool,
-        recordingActive: Bool
+        recordingActive: Bool,
+        deactivateAfterPlayed: Bool
     ) {
         #if os(iOS)
         do {
@@ -448,7 +451,8 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
             url: url,
             isLocal: isLocal,
             isNotification: isNotification,
-            recordingActive: recordingActive
+            recordingActive: recordingActive,
+            deactivateAfterPlayed: deactivateAfterPlayed
         ) {
             playerId in
             let playerInfo = self.players[playerId]!
@@ -477,6 +481,7 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
         isLocal: Bool,
         isNotification: Bool,
         recordingActive: Bool,
+        deactivateAfterPlayed: Bool,
         onReady: @escaping VoidCallback
     ) {
         let playerInfo = players[playerId]!
@@ -547,7 +552,7 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
             
             let anObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.AVPlayerItemDidPlayToEndTime, object: playerItem, queue: nil) {
                 [weak self] (notification) in
-                self!.onSoundComplete(playerId: playerId)
+                self!.onSoundComplete(playerId: playerId, deactivateAfterPlayed: deactivateAfterPlayed)
             }
             playerInfo.observers.append(TimeObserver(player: player, observer: anObserver))
             
@@ -725,7 +730,7 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
         #endif
     }
     
-    func onSoundComplete(playerId: String) {
+    func onSoundComplete(playerId: String,deactivateAfterPlayed: Bool) {
         log("%@ -> onSoundComplete...", osName)
         let playerInfo: PlayerInfo = players[playerId]!
         
@@ -745,7 +750,7 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
         
         #if os(iOS)
         let hasPlaying: Bool = players.values.contains { player in player.isPlaying }
-        if !hasPlaying {
+        if !hasPlaying && deactivateAfterPlayed {
             do {
                 try AVAudioSession.sharedInstance().setActive(false)
             } catch {
