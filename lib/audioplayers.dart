@@ -489,9 +489,10 @@ class AudioPlayer {
   ///
   /// The resources are going to be fetched or buffered again as soon as you
   /// call [play] or [setUrl].
-  Future<int> release() async {
-    final int result = await _invokeMethod('release');
-
+  Future<int> release({bool deactivateAudioSession = false}) async {
+    final int result = await _invokeMethod('release', {
+      'deactivateAudioSession': deactivateAudioSession,
+    });
     if (result == 1) {
       state = AudioPlayerState.STOPPED;
     }
@@ -678,9 +679,9 @@ class AudioPlayer {
   ///
   /// You must call this method when your [AudioPlayer] instance is not going to
   /// be used anymore. If you try to use it after this you will get errors.
-  Future<void> dispose() async {
+  Future<void> dispose({bool deactivateAudioSession = true}) async {
     // First stop and release all native resources.
-    await this.release();
+    await this.release(deactivateAudioSession: deactivateAudioSession);
 
     List<Future> futures = [];
 

@@ -280,7 +280,8 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
             let deactivateAudioSession: Bool = (args["deactivateAudioSession"] as? Bool) ?? false
             self.stop(playerId: playerId, deactivateAudioSession: deactivateAudioSession)
         } else if method == "release" {
-            self.stop(playerId: playerId)
+            let deactivateAudioSession: Bool = (args["deactivateAudioSession"] as? Bool) ?? true
+            self.stop(playerId: playerId, deactivateAudioSession: deactivateAudioSession))
         } else if method == "seek" {
             let position: Int? = args["position"] as? Int
             if position == nil {
