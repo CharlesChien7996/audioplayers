@@ -218,7 +218,7 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
         log("%@ => call %@, playerId %@", osName, method, playerId)
         
         self.initPlayerInfo(playerId: playerId)
-
+        
         if method == "startHeadlessService" {
             #if os(iOS)
             if let handleKey = args["handleKey"] {
@@ -251,16 +251,16 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
             
             let isLocal: Bool = (args["isLocal"] as? Bool) ?? true
             let volume: Float = (args["volume"] as? Float) ?? 1.0
-
+            
             // we might or might not want to seek
             let seekTimeMillis: Int? = (args["position"] as? Int)
             let seekTime: CMTime? = seekTimeMillis.map { toCMTime(millis: $0) }
-
+            
             let respectSilence: Bool = (args["respectSilence"] as? Bool) ?? false
             let recordingActive: Bool = (args["recordingActive"] as? Bool) ?? false
             let duckAudio: Bool = (args["duckAudio"] as? Bool) ?? false
             let deactivateAfterPlayed: Bool = (args["deactivateAfterPlayed"] as? Bool) ?? false
-
+            
             self.play(
                 playerId: playerId,
                 url: url!,
@@ -277,7 +277,8 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
         } else if method == "resume" {
             self.resume(playerId: playerId)
         } else if method == "stop" {
-            self.stop(playerId: playerId)
+            let deactivateAudioSession: Bool = (args["deactivateAudioSession"] as? Bool) ?? false
+            self.stop(playerId: playerId, deactivateAudioSession: deactivateAudioSession)
         } else if method == "release" {
             self.stop(playerId: playerId)
         } else if method == "seek" {
@@ -294,13 +295,13 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
             let respectSilence: Bool = (args["respectSilence"] as? Bool) ?? false
             let recordingActive: Bool = (args["recordingActive"] as? Bool) ?? false
             let deactivateAfterPlayed: Bool = (args["deactivateAfterPlayed"] as? Bool) ?? false
-
+            
             if url == nil {
                 log("Null URL received on setUrl")
                 result(0)
                 return
             }
-
+            
             self.setUrl(
                 playerId: playerId,
                 url: url!,
@@ -356,7 +357,7 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
             
             let enablePreviousTrackButton: Bool? = args["enablePreviousTrackButton"] as? Bool
             let enableNextTrackButton: Bool? = args["enableNextTrackButton"] as? Bool
-
+            
             // TODO(luan) reconsider whether these params are optional or not + default values/errors
             self.setNotification(
                 playerId: playerId,
@@ -379,7 +380,7 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
             result(FlutterMethodNotImplemented)
             return
         }
-
+        
         // shortcut to avoid requiring explicit call of result(1) everywhere
         if method != "setUrl" {
             result(1)
@@ -702,13 +703,20 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
         playerInfo.looping = looping
     }
     
-    func stop(playerId: String) {
+    func stop(playerId: String, deactivateAudioSession: Bool) {
         let playerInfo: PlayerInfo = players[playerId]!
         if playerInfo.isPlaying {
             self.pause(playerId: playerId)
             playerInfo.isPlaying = false
         }
         self.seek(playerId: playerId, time: toCMTime(millis: 0))
+        if (deactivateAudioSession) {
+            do {
+                try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            } catch {
+                log("Error inactivating audio session %@", error)
+            }
+        }
     }
     
     func seek(playerId: String, time: CMTime) {
@@ -754,7 +762,7 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
         let hasPlaying: Bool = players.values.contains { player in player.isPlaying }
         if !hasPlaying && deactivateAfterPlayed {
             do {
-                try AVAudioSession.sharedInstance().setActive(false)
+                try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             } catch {
                 log("Error inactivating audio session %@", error)
             }
@@ -769,7 +777,7 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
     }
     
     // notifications
-
+    
     #if os(iOS)
     static func geneateImageFromUrl(urlString: String) -> UIImage? {
         if urlString.hasPrefix("http") {
@@ -804,7 +812,7 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
         ]
         
         log("Updating playing info...")
-
+        
         // fetch notification image in async fashion to avoid freezing UI
         DispatchQueue.global().async() { [weak self] in
             if let imageUrl = self?.imageUrl {
@@ -815,7 +823,7 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
                     playingInfo[MPMediaItemPropertyArtwork] = albumArt
                 }
             }
-
+            
             if let infoCenter = self?.infoCenter {
                 let filteredMap = playingInfo.filter { $0.value != nil }.mapValues { $0! }
                 log("Setting playing info: %@", filteredMap)
@@ -842,41 +850,41 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
         self.artist = artist
         self.imageUrl = imageUrl
         self.duration = duration
-
+        
         self.infoCenter = MPNowPlayingInfoCenter.default()
         self.updateNotification(time: self.toCMTime(millis: elapsedTime))
-
+        
         if (remoteCommandCenter == nil) {
             remoteCommandCenter = MPRemoteCommandCenter.shared()
-
-          if (forwardSkipInterval > 0 || backwardSkipInterval > 0) {
-            let skipBackwardIntervalCommand = remoteCommandCenter!.skipBackwardCommand
-            skipBackwardIntervalCommand.isEnabled = true
-            skipBackwardIntervalCommand.addTarget(handler: self.skipBackwardEvent)
-            skipBackwardIntervalCommand.preferredIntervals = [backwardSkipInterval as NSNumber]
-
-            let skipForwardIntervalCommand = remoteCommandCenter!.skipForwardCommand
-            skipForwardIntervalCommand.isEnabled = true
-            skipForwardIntervalCommand.addTarget(handler: self.skipForwardEvent)
-            skipForwardIntervalCommand.preferredIntervals = [forwardSkipInterval as NSNumber] // Max 99
-          } else {  // if skip interval not set using next and previous
-            let nextTrackCommand = remoteCommandCenter!.nextTrackCommand
-            nextTrackCommand.isEnabled = enableNextTrackButton ?? false
-            nextTrackCommand.addTarget(handler: self.nextTrackEvent)
             
-            let previousTrackCommand = remoteCommandCenter!.previousTrackCommand
-            previousTrackCommand.isEnabled = enablePreviousTrackButton ?? false
-            previousTrackCommand.addTarget(handler: self.previousTrackEvent)
-          }
-
+            if (forwardSkipInterval > 0 || backwardSkipInterval > 0) {
+                let skipBackwardIntervalCommand = remoteCommandCenter!.skipBackwardCommand
+                skipBackwardIntervalCommand.isEnabled = true
+                skipBackwardIntervalCommand.addTarget(handler: self.skipBackwardEvent)
+                skipBackwardIntervalCommand.preferredIntervals = [backwardSkipInterval as NSNumber]
+                
+                let skipForwardIntervalCommand = remoteCommandCenter!.skipForwardCommand
+                skipForwardIntervalCommand.isEnabled = true
+                skipForwardIntervalCommand.addTarget(handler: self.skipForwardEvent)
+                skipForwardIntervalCommand.preferredIntervals = [forwardSkipInterval as NSNumber] // Max 99
+            } else {  // if skip interval not set using next and previous
+                let nextTrackCommand = remoteCommandCenter!.nextTrackCommand
+                nextTrackCommand.isEnabled = enableNextTrackButton ?? false
+                nextTrackCommand.addTarget(handler: self.nextTrackEvent)
+                
+                let previousTrackCommand = remoteCommandCenter!.previousTrackCommand
+                previousTrackCommand.isEnabled = enablePreviousTrackButton ?? false
+                previousTrackCommand.addTarget(handler: self.previousTrackEvent)
+            }
+            
             let pauseCommand = remoteCommandCenter!.pauseCommand
             pauseCommand.isEnabled = true
             pauseCommand.addTarget(handler: self.playOrPauseEvent)
-
+            
             let playCommand = remoteCommandCenter!.playCommand
             playCommand.isEnabled = true
             playCommand.addTarget(handler: self.playOrPauseEvent)
-
+            
             let togglePlayPauseCommand = remoteCommandCenter!.togglePlayPauseCommand
             togglePlayPauseCommand.isEnabled = true
             togglePlayPauseCommand.addTarget(handler: self.playOrPauseEvent)
@@ -948,7 +956,7 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
     
     func playOrPauseEvent(event: MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus {
         log("playOrPauseEvent called")
-
+        
         guard let playerId = currentPlayerId else {
             return MPRemoteCommandHandlerStatus.commandFailed
         }

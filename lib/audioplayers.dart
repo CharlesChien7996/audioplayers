@@ -462,9 +462,10 @@ class AudioPlayer {
   ///
   /// The position is going to be reset and you will no longer be able to resume
   /// from the last point.
-  Future<int> stop() async {
-    final int result = await _invokeMethod('stop');
-
+  Future<int> stop({bool deactivateAudioSession = false}) async {
+    final int result = await _invokeMethod('stop', {
+      'deactivateAudioSession': deactivateAudioSession,
+    });
     if (result == 1) {
       state = AudioPlayerState.STOPPED;
     }
