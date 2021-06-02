@@ -278,6 +278,8 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
             self.stop(playerId: playerId)
         } else if method == "release" {
             self.stop(playerId: playerId)
+        } else if method == "deactivateAudioSession" {
+            self.deactivateAudioSession()
         } else if method == "seek" {
             let position: Int? = args["position"] as? Int
             if position == nil {
@@ -740,19 +742,7 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
             self.resume(playerId: playerId)
         }
         
-        
         channel.invokeMethod("audio.onComplete", arguments: ["playerId": playerId])
-        
-        #if os(iOS)
-        let hasPlaying: Bool = players.values.contains { player in player.isPlaying }
-        if !hasPlaying {
-            do {
-                try AVAudioSession.sharedInstance().setActive(false)
-            } catch {
-                log("Error inactivating audio session %@", error)
-            }
-        }
-        #endif
         
         #if os(iOS)
         if headlessServiceInitialized {
@@ -879,6 +869,19 @@ public class SwiftAudioplayersPlugin: NSObject, FlutterPlugin {
                 changePlaybackPositionCommand.isEnabled = true
                 changePlaybackPositionCommand.addTarget(handler: self.onChangePlaybackPositionCommand)
             }
+        }
+    }
+    
+    func deactivateAudioSession() {
+        let hasPlaying: Bool = players.values.contains { player in player.isPlaying }
+        if hasPlaying {
+            return
+        }
+        do {
+            try AVAudioSession.sharedInstance().setActive(false,options: .notifyOthersOnDeactivation)
+        } catch {
+            log("Error inactivating audio session %@", error)
+            
         }
     }
     
